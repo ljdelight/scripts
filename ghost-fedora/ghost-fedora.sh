@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 #
-# This script is used to install the Ghost blog on Fedora. It works using the
-# Digitalocean Fedora 24 droplet. The ghost service runs as the 'ghost' user
-# and is rooted at /var/www/ghost. Run the script and configure ghost.
+# This script is used to install the Ghost blog on Fedora and assumes a CLEAN
+# machine will DESTROY nginx config. The ghost service runs as the 'ghost' user
+# and is rooted at /var/www/ghost.
 #
-# Restart the ghost service (I create a systemd file): systemctl restart ghost
+# Run this script then configure ghost and nginx for your specific domain.
+#
+# Useful system management:
+# - Ghost is installed and run as user 'ghost' when npm is executed
+# - Restart the ghost service: systemctl restart ghost
+# - Restart nginx: systemctl restart nginx
+# - Ghost configuration dir: /var/www/ghost/
+# - Nginx ghost config: /etc/nginx/conf.d/*.conf
+#
+# IMPORTANT NOTE:
+# Be sure there is sufficient RAM and swap space! The ghost install will fail
+# on systems with 512MB and no swap space. Using `--verbose` might get around
+# the issue but it's just luck. Follow this:
+# https://www.digitalocean.com/community/tutorials/how-to-add-swap-on-centos-7
 #
 
 set -ex
@@ -13,12 +26,11 @@ dnf install -y python gcc gcc-c++ make automake
 dnf install -y nginx nodejs npm unzip
 
 GHOST_ROOT=/var/www/ghost
-GHOST_GROUP=ghost
 GHOST_USER=ghost
+GHOST_GROUP=${GHOST_USER}
 GHOST_VERSION=0.11.3
 
-groupadd ${GHOST_GROUP}
-useradd -s /bin/false -g ${GHOST_GROUP} ${GHOST_USER}
+useradd --system --create-home --shell /bin/false --user-group ${GHOST_USER}
 
 mkdir -p ${GHOST_ROOT}
 
@@ -28,9 +40,7 @@ pushd ${GHOST_ROOT}
   chown -R ${GHOST_USER}:${GHOST_GROUP} ${GHOST_ROOT}
 popd
 
-# IMPORTANT NOTE:
-# The --verbose is needed here! Otherwise npm will fail for unknown reasons.
-sudo -H -u ghost /bin/bash -c "cd ${GHOST_ROOT} && npm --verbose install --production"
+sudo -H -u ghost /bin/bash -c "cd ${GHOST_ROOT} && npm install --production"
 
 cat > /etc/systemd/system/ghost.service << EOL
 [Unit]
