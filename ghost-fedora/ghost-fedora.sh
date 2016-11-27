@@ -10,7 +10,7 @@
 # - Ghost is installed and run as user 'ghost' when npm is executed
 # - Restart the ghost service: systemctl restart ghost
 # - Restart nginx: systemctl restart nginx
-# - Ghost configuration dir: /var/www/ghost/
+# - Ghost configuration dir: /var/www/ghost-*/
 # - Nginx ghost config: /etc/nginx/conf.d/*.conf
 #
 # IMPORTANT NOTE:
@@ -25,7 +25,9 @@ set -ex
 dnf install -y python gcc gcc-c++ make automake
 dnf install -y nginx nodejs npm unzip
 
-GHOST_ROOT=/var/www/ghost
+GHOST_URL=blog.ljdelight.com
+GHOST_ROOT=/var/www/ghost-${GHOST_URL}
+GHOST_PORT=2368
 GHOST_USER=ghost
 GHOST_GROUP=${GHOST_USER}
 GHOST_VERSION=0.11.3
@@ -37,12 +39,40 @@ mkdir -p ${GHOST_ROOT}
 pushd ${GHOST_ROOT}
   curl -L https://github.com/TryGhost/Ghost/releases/download/${GHOST_VERSION}/Ghost-${GHOST_VERSION}.zip -o ../ghost.zip
   unzip ../ghost.zip -d .
-  chown -R ${GHOST_USER}:${GHOST_GROUP} ${GHOST_ROOT}
 popd
 
+cat > ${GHOST_ROOT}/config.js << EOL
+var path = require('path'),
+    config;
+
+config = {
+    // ### Production
+    // When running Ghost in the wild, use the production environment.
+    // Configure your URL and mail settings here
+    production: {
+        url: 'http://${GHOST_URL}',
+        mail: {},
+        database: {
+            client: 'sqlite3',
+            connection: {
+                filename: path.join(__dirname, '/content/data/ghost.db')
+            },
+            debug: false
+        },
+
+        server: {
+            host: '127.0.0.1',
+            port: '${GHOST_PORT}'
+        }
+    }
+};
+module.exports = config;
+EOL
+
+chown -R ${GHOST_USER}:${GHOST_GROUP} ${GHOST_ROOT}
 sudo -H -u ghost /bin/bash -c "cd ${GHOST_ROOT} && npm install --production"
 
-cat > /etc/systemd/system/ghost.service << EOL
+cat > /etc/systemd/system/ghost-${GHOST_URL}.service << EOL
 [Unit]
 Description=ghost
 After=network.target
@@ -52,31 +82,31 @@ Type=simple
 WorkingDirectory=${GHOST_ROOT}
 User=${GHOST_USER}
 Group=${GHOST_GROUP}
-ExecStart=/usr/bin/npm start --production
-ExecStop=/usr/bin/npm stop --production
-Restart=always
-SyslogIdentifier=Ghost
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+SyslogIdentifier=ghost-${GHOST_URL}
 
 [Install]
 WantedBy=multi-user.target
 EOL
 
 
-cat > /etc/nginx/conf.d/ljdelight.com.conf << EOL
+cat > /etc/nginx/conf.d/${GHOST_URL}.conf << EOL
 server {
     listen 80 default_server;
     # listen [::]:80 default_server ipv6only=on;
     # listen 443 default_server ssl;
     # listen [::]:443 default_server ipv6only=on ssl;
 
-    server_name ljdelight.com;
+    server_name ${GHOST_URL};
     client_max_body_size 2G;
 
-    # ssl_certificate /etc/nginx/ssl/ljdelightcom.crt;
-    # ssl_certificate_key /etc/nginx/ssl/ljdelightcom.pem;
+    # ssl_certificate /etc/nginx/ssl/${GHOST_URL}.crt;
+    # ssl_certificate_key /etc/nginx/ssl/${GHOST_URL}.pem;
 
     location / {
-        proxy_pass http://localhost:2368;
+        proxy_pass http://localhost:${GHOST_PORT};
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header Host \$http_host;
         proxy_set_header X-Forwarded-Proto \$scheme;
@@ -122,8 +152,8 @@ EOL
 
 
 systemctl daemon-reload
-systemctl restart ghost nginx
-systemctl enable ghost nginx
+systemctl restart ghost-${GHOST_URL}.service nginx
+systemctl enable ghost-${GHOST_URL}.service nginx
 
 echo "Disable selinux!"
-echo "Configure ghost at /var/www/ghost"
+echo "Configure ghost at ${GHOST_ROOT}"
