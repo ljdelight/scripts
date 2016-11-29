@@ -25,7 +25,8 @@ set -ex
 dnf install -y python gcc gcc-c++ make automake
 dnf install -y nginx nodejs npm unzip
 
-GHOST_URL=blog.ljdelight.com
+GHOST_URL_DOMAIN=ljdelight.com
+GHOST_URL=blog.${GHOST_URL_DOMAIN}
 GHOST_ROOT=/var/www/ghost-${GHOST_URL}
 GHOST_PORT=2368
 GHOST_USER=ghost
@@ -91,15 +92,23 @@ SyslogIdentifier=ghost-${GHOST_URL}
 WantedBy=multi-user.target
 EOL
 
+// Route mydomain.com to blog.mydomain.com
+cat > /etc/nginx/conf.d/${GHOST_URL_DOMAIN}.conf << EOL
+  server {
+      listen 80;
+      server_name ${GHOST_URL_DOMAIN} www.${GHOST_URL_DOMAIN};
+      return      301 http://${GHOST_URL}\$request_uri;
+  }
+EOL
 
 cat > /etc/nginx/conf.d/${GHOST_URL}.conf << EOL
 server {
-    listen 80 default_server;
-    # listen [::]:80 default_server ipv6only=on;
-    # listen 443 default_server ssl;
-    # listen [::]:443 default_server ipv6only=on ssl;
+    listen 80;
+    # listen [::]:80 ipv6only=on;
+    # listen 443 ssl;
+    # listen [::]:443 ipv6only=on ssl;
 
-    server_name ${GHOST_URL};
+    server_name ${GHOST_URL} www.${GHOST_URL};
     client_max_body_size 2G;
 
     # ssl_certificate /etc/nginx/ssl/${GHOST_URL}.crt;
@@ -114,6 +123,7 @@ server {
     }
 }
 EOL
+
 
 
 cat > /etc/nginx/nginx.conf << EOL
