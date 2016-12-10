@@ -23,7 +23,7 @@
 set -ex
 
 dnf install -y python gcc gcc-c++ make automake
-dnf install -y nginx nodejs npm unzip
+dnf install -y letsencrypt nginx nodejs npm unzip
 
 GHOST_URL_DOMAIN=ljdelight.com
 GHOST_URL=blog.${GHOST_URL_DOMAIN}
@@ -42,7 +42,7 @@ pushd ${GHOST_ROOT}
   unzip ../ghost.zip -d .
 popd
 
-cat > ${GHOST_ROOT}/config.js << EOL
+cat > ${GHOST_ROOT}/config.js <<EOL
 var path = require('path'),
     config;
 
@@ -73,7 +73,7 @@ EOL
 chown -R ${GHOST_USER}:${GHOST_GROUP} ${GHOST_ROOT}
 sudo -H -u ghost /bin/bash -c "cd ${GHOST_ROOT} && npm install --production"
 
-cat > /etc/systemd/system/ghost-${GHOST_URL}.service << EOL
+cat > /etc/systemd/system/ghost-${GHOST_URL}.service <<EOL
 [Unit]
 Description=ghost
 After=network.target
@@ -92,8 +92,9 @@ SyslogIdentifier=ghost-${GHOST_URL}
 WantedBy=multi-user.target
 EOL
 
-// Route mydomain.com to blog.mydomain.com
-cat > /etc/nginx/conf.d/${GHOST_URL_DOMAIN}.conf << EOL
+
+# Route mydomain.com to blog.mydomain.com
+cat > /etc/nginx/conf.d/${GHOST_URL_DOMAIN}.conf <<EOL
   server {
       listen 80;
       server_name ${GHOST_URL_DOMAIN} www.${GHOST_URL_DOMAIN};
@@ -101,7 +102,8 @@ cat > /etc/nginx/conf.d/${GHOST_URL_DOMAIN}.conf << EOL
   }
 EOL
 
-cat > /etc/nginx/conf.d/${GHOST_URL}.conf << EOL
+
+cat > /etc/nginx/conf.d/${GHOST_URL}.conf <<EOL
 server {
     listen 80;
     # listen [::]:80 ipv6only=on;
@@ -126,7 +128,7 @@ EOL
 
 
 
-cat > /etc/nginx/nginx.conf << EOL
+cat > /etc/nginx/nginx.conf <<EOL
 user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log;
@@ -159,7 +161,6 @@ http {
     # ssl_session_cache shared:SSL:10m;
 }
 EOL
-
 
 systemctl daemon-reload
 systemctl restart ghost-${GHOST_URL}.service nginx
