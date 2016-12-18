@@ -1,0 +1,31 @@
+#
+# Simple docker-compose file for Gitlab CE and a Jenkins master.
+# This is for testing and builds are done on the jenkins master.
+#
+
+version: "2"
+
+services:
+  gitlab:
+    image: "gitlab/gitlab-ce:8.14.4-ce.0"
+    container_name: "gitlab"
+    restart: "always"
+    hostname: "gitlab"
+    ports:
+      - "8081:80"
+    volumes:
+      - "/opt/automation/gitlab/config:/etc/gitlab"
+      - "/opt/automation/gitlab/logs:/var/log/gitlab"
+      - "/opt/automation/gitlab/data:/var/opt/gitlab"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url "http://gitlab"
+
+  jenkins-master:
+    image: "jenkins:2.19.4"
+    container_name: "jenkins-master"
+    restart: "always"
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/opt/automation/jenkins-master:/var/jenkins_home"
